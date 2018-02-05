@@ -123,7 +123,7 @@ int rcksum_filehandle(struct rcksum_state *rs) {
 }
 
 int rcksum_fileopen(struct rcksum_state *rs) {
-    rs->fd = open(rs->filename, O_RDWR | O_CREAT);
+    rs->fd = open(rs->filename, O_RDWR | O_CREAT, 0666);
     return 0;
 }
 
