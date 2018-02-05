@@ -16,7 +16,6 @@
 #ifndef ZSGLOBAL_H
 #define ZSGLOBAL_H
 
-#include <qglobal.h>
 #include <stdint.h>
 
 #ifdef HAVE_CONFIG_H
