@@ -1,7 +1,7 @@
 
 noinst_LIBRARIES = libzsync.a
 
-libzsync_a_SOURCES = zmap.h zsync.h sha1.h zsync.c zmap.c sha1.c
+libzsync_a_SOURCES = zmap.h zsync.h sha1.h zsync.c zmap.c sha1.c zsyncfile.h zsyncfile.c
 
 TESTS = sha1test
 noinst_PROGRAMS = sha1test
