@@ -41,6 +41,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <time.h>
+#include <arpa/inet.h>
 
 #ifdef WITH_DMALLOC
 # include <dmalloc.h>
