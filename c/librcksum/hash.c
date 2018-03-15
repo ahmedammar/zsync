@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+#include <stdint.h>
 
 #ifdef WITH_DMALLOC
 # include <dmalloc.h>
@@ -135,15 +136,15 @@ static void print_hashstats(const struct rcksum_state* z) {
  */
 int build_hash(struct rcksum_state *z) {
     zs_blockid id;
-    int avail_bits = z->seq_matches > 1 ? min(z->rsum_bits, 16)*2 : z->rsum_bits;
+    int avail_bits = z->rsum_bits;
     int hash_bits = avail_bits;
 
     /* Pick a hash size that is a power of two and gives a load factor of <1 */
-    while ((1U << (hash_bits-1)) > z->blocks && hash_bits > 5)
+    while ((1Ull << (hash_bits-1)) > (uint64_t)z->blocks && hash_bits > 5)
         hash_bits--;
 
     /* Allocate hash based on rsum */
-    z->hashmask = (1U << hash_bits) - 1;
+    z->hashmask = (1Ull << hash_bits) - 1;
     z->rsum_hash = calloc(z->hashmask + 1, sizeof *(z->rsum_hash));
     if (!z->rsum_hash)
         return 0;
@@ -161,16 +162,20 @@ int build_hash(struct rcksum_state *z) {
     }
 
     /* We want the hash function to return hash_bits bits. We will xor one
-     * number with a second number that may have fewer than 16 bits of
+     * number with a second number that may have fewer than 32 bits of
      * available data; set up an appropriate bit shift for the second number.
      * This is closely tied to calc_rhash().
+     *
+     * The idea here is to align a and b like this for xor:
+     *
+     *     |--- b value ---| (size is min(32, available_bits))
+     * |- a value -|         (size is max(0, available_bits - 32))
+     * |---- hash bits ----|
      */
-    if (z->seq_matches > 1 && avail_bits < 24) {
-        /* second number has (avail_bits/2) bits available. */
-        z->hash_func_shift = max(0, hash_bits - (avail_bits / 2));
-    } else {
-        /* second number has avail_bits - 16 bits available. */
-        z->hash_func_shift = max(0, hash_bits - (avail_bits - 16));
+    z->hash_func_shift = 0;
+    int potential_shift = hash_bits - (avail_bits - 32);
+    if (avail_bits > 32 && potential_shift > 0) {
+        z->hash_func_shift = (unsigned short)potential_shift;
     }
 
     /* Now fill in the hash tables.
@@ -184,7 +189,7 @@ int build_hash(struct rcksum_state *z) {
         struct hash_entry *e = z->blockhashes + (--id);
 
         /* Prepend to linked list for this hash entry */
-        unsigned h = calc_rhash(z, e);
+        uint64_t h = calc_rhash(z, &e->r);
         e->next = z->rsum_hash[h & z->hashmask];
         z->rsum_hash[h & z->hashmask] = e;
 
@@ -216,7 +221,7 @@ static void sprint_checksum(char* buf, const struct hash_entry* t) {
 void remove_block_from_hash(struct rcksum_state *z, zs_blockid id) {
     struct hash_entry *t = &(z->blockhashes[id]);
 
-    struct hash_entry **p = &(z->rsum_hash[calc_rhash(z, t) & z->hashmask]);
+    struct hash_entry **p = &(z->rsum_hash[calc_rhash(z, &t->r) & z->hashmask]);
 
     while (*p != NULL) {
         if (*p == t) {

@@ -62,9 +62,8 @@ int zsyncfile_read_stream_write_blocksums(
 /* Decide how many bytes from the rsum hash and checksum hash per block to keep for
  * a file with the given length and blocksize. Also decide on seq_matches.
  */
-void zsyncfile_compute_hash_lengths(
-        off_t len, size_t blocksize,
-        int *rsum_len, int *checksum_len, int *seq_matches);
+void zsyncfile_compute_hash_lengths(off_t len, size_t blocksize,
+        int *rsum_len, int *checksum_len);
 
 /* Create a zsync file in fout.
  *
@@ -76,9 +75,8 @@ void zsyncfile_compute_hash_lengths(
  *
  * Returns 0 on success.
  */
-int zsyncfile_write(
-        FILE *fout, FILE *tf,
-        int rsum_len, int checksum_len, int seq_matches,
+int zsyncfile_write(FILE *fout, FILE *tf,
+        int rsum_len, int checksum_len,
         int do_recompress, const char *zfname, char *gzopts,
         const char *fname, time_t mtime,
         char **url, int nurls,

@@ -212,7 +212,7 @@ int main(int argc, char **argv) {
     char *outfname = NULL;
     FILE *fout;
     char *infname = NULL;
-    int rsum_len, checksum_len, seq_matches;
+    int rsum_len, checksum_len;
     int do_compress = 0;
     int do_recompress = -1;     // -1 means we decide for ourselves
     int do_exact = 0;
@@ -451,11 +451,11 @@ int main(int argc, char **argv) {
                 infname);
     }
 
-    zsyncfile_compute_hash_lengths(state->len, state->blocksize, &rsum_len, &checksum_len, &seq_matches);
+    zsyncfile_compute_hash_lengths(state->len, state->blocksize, &rsum_len, &checksum_len);
 
     zsyncfile_write(
         fout, tf,
-        rsum_len, checksum_len, seq_matches,
+        rsum_len, checksum_len,
         do_recompress, zfname, gzopts,
         fname, mtime,
         url, nurls,

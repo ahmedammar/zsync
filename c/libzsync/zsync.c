@@ -125,12 +125,10 @@ struct zsync_state {
 
     int rsum_bytes;
     unsigned int checksum_bytes;
-    int seq_matches;
 };
 
 static int zsync_read_blocksums(struct zsync_state *zs, FILE * f,
-                                int rsum_bytes, unsigned int checksum_bytes,
-                                int seq_matches);
+                                int rsum_bytes, unsigned int checksum_bytes);
 static int zsync_sha1(struct zsync_state *zs, int fh);
 static int zsync_recompress(struct zsync_state *zs);
 static time_t parse_822(const char* ts);
@@ -171,7 +169,6 @@ struct zsync_state *zsync_parse(FILE * f) {
      * were variable. */
     zs->checksum_bytes = 16;
     zs->rsum_bytes = 4;
-    zs->seq_matches = 1;
 
     /* Any non-zero defaults here. */
     zs->mtime = -1;
@@ -239,11 +236,12 @@ struct zsync_state *zsync_parse(FILE * f) {
                 zs->blocksize = (size_t)blocksize;
             }
             else if (!strcmp(buf, "Hash-Lengths")) {
+                int seq_matches = 0;
                 if (sscanf
-                    (p, "%d,%d,%d", &zs->seq_matches, &zs->rsum_bytes,
-                     &zs->checksum_bytes) != 3 || zs->rsum_bytes < 1 || zs->rsum_bytes > 4
+                    (p, "%d,%d,%d", &seq_matches, &zs->rsum_bytes,
+                     &zs->checksum_bytes) != 3 || zs->rsum_bytes < 1 || zs->rsum_bytes > 8
                     || zs->checksum_bytes < 3 || zs->checksum_bytes > 16
-                    || zs->seq_matches > 2 || zs->seq_matches < 1) {
+                    || seq_matches != 1) {
                     fprintf(stderr, "nonsensical hash lengths line %s\n", p);
                     free(zs);
                     return NULL;
@@ -339,7 +337,7 @@ struct zsync_state *zsync_parse(FILE * f) {
 
     /* Make the rcksum_state first */
     if (!(zs->rs = rcksum_init(zs->blocks, zs->blocksize, zs->rsum_bytes,
-                               zs->checksum_bytes, zs->seq_matches))) {
+                               zs->checksum_bytes))) {
         fprintf(stderr, "Failed to initialize rcksum\n");
         free(zs);
         return NULL;
@@ -350,14 +348,14 @@ struct zsync_state *zsync_parse(FILE * f) {
 
 /* Actuall begin parsing input */
 int zsync_begin(struct zsync_state *zs, FILE * f) {
-    if (zsync_read_blocksums(zs, f, zs->rsum_bytes, zs->checksum_bytes, zs->seq_matches) != 0) {
+    if (zsync_read_blocksums(zs, f, zs->rsum_bytes, zs->checksum_bytes) != 0) {
         free(zs);
         return -1;
     }
     return 0;
 }
 
-/* zsync_read_blocksums(self, FILE*, rsum_bytes, checksum_bytes, seq_matches)
+/* zsync_read_blocksums(self, FILE*, rsum_bytes, checksum_bytes)
  * Called during construction only, this creates the rcksum_state that stores
  * the per-block checksums of the target file and holds the local working copy
  * of the in-progress target. And it populates the per-block checksums from the
@@ -366,8 +364,7 @@ int zsync_begin(struct zsync_state *zs, FILE * f) {
  * rsum_bytes, checksum_bytes, seq_matches are settings for the checksums,
  * passed through to the rcksum_state. */
 static int zsync_read_blocksums(struct zsync_state *zs, FILE * f,
-                                int rsum_bytes, unsigned int checksum_bytes,
-                                int seq_matches) {
+                                int rsum_bytes, unsigned int checksum_bytes) {
     /* Now read in and store the checksums */
     zs_blockid id = 0;
     for (; id < zs->blocks; id++) {
@@ -375,7 +372,7 @@ static int zsync_read_blocksums(struct zsync_state *zs, FILE * f,
         unsigned char checksum[CHECKSUM_SIZE];
 
         /* Read in */
-        if (fread(((char *)&r) + 4 - rsum_bytes, rsum_bytes, 1, f) < 1
+        if (fread(((char *)&r) + sizeof(struct rsum) - rsum_bytes, rsum_bytes, 1, f) < 1
             || fread((void *)&checksum, checksum_bytes, 1, f) < 1) {
 
             /* Error - free the rcksum_state and tell the caller to bail */
@@ -386,8 +383,8 @@ static int zsync_read_blocksums(struct zsync_state *zs, FILE * f,
         }
 
         /* Convert to host endian and store */
-        r.a = ntohs(r.a);
-        r.b = ntohs(r.b);
+        r.a = ntohl(r.a);
+        r.b = ntohl(r.b);
         rcksum_add_target_block(zs->rs, id, r, checksum);
     }
     return 0;

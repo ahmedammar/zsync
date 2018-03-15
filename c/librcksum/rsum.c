@@ -39,16 +39,14 @@
  * and by the library, which is ugly. */
 #include "../progress.h"
 
-#define UPDATE_RSUM(a, b, oldc, newc, bshift) do { (a) += ((unsigned char)(newc)) - ((unsigned char)(oldc)); (b) += (a) - ((oldc) << (bshift)); } while (0)
+#define UPDATE_RSUM(a, b, oldc, newc, bshift) do { (a) += ((unsigned char)(newc)) - ((unsigned char)(oldc)); (b) += (a) - ((rsum_component_type)(oldc) << (bshift)); } while (0)
 
 /* rcksum_calc_rsum_block(data, data_len)
  * Calculate the rsum for a single block of data. */
-/* Note int len here, not size_t, because the compiler is stupid and expands
- * the 32bit size_t to 64bit inside the inner loop. */
 struct rsum __attribute__((pure))
 rcksum_calc_rsum_block(const unsigned char *data, size_t len) {
-    register unsigned short a = 0;
-    register unsigned short b = 0;
+    register rsum_component_type a = 0;
+    register rsum_component_type b = 0;
     size_t i;
 
     for (i = 0; i < len; i++) {
@@ -193,10 +191,10 @@ static int check_checksums_on_hash_chain(struct rcksum_state *const z,
     unsigned char md4sum[2][CHECKSUM_SIZE];
     signed int done_md4 = -1;
     int got_blocks = 0;
-    register struct rsum r = z->r[0];
+    register struct rsum r = z->r;
 
     /* This is a hint to the caller that they should try matching the next
-     * block against a particular hash entry (because at least z->seq_matches
+     * block against a particular hash entry (because at least 1
      * prior blocks to it matched in sequence). Clear it here and set it below
      * if and when we get such a set of matches. */
     z->next_match = NULL;
@@ -220,12 +218,6 @@ static int check_checksums_on_hash_chain(struct rcksum_state *const z,
 
         id = get_HE_blockid(z, e);
 
-        if (!onlyone && z->seq_matches > 1
-            && (e[1].r.a != (z->r[1].a & z->rsum_a_mask)
-                || e[1].r.b != z->r[1].b)) {
-            continue;
-        }
-
         z->stats.weakhit++;
 
         {
@@ -233,7 +225,7 @@ static int check_checksums_on_hash_chain(struct rcksum_state *const z,
             signed int check_md4 = 0;
 
             /* This block at least must match; we must match at least
-             * z->seq_matches-1 others, which could either be trailing stuff,
+             * 0 (seq_matches was removed) others, which could either be trailing stuff,
              * or these could be preceding blocks that we have verified
              * already. */
             do {
@@ -253,7 +245,7 @@ static int check_checksums_on_hash_chain(struct rcksum_state *const z,
                     ok = 0;
 
                 check_md4++;
-            } while (ok && !onlyone && check_md4 < z->seq_matches);
+            } while (ok && !onlyone && check_md4 < 1);
 
             if (ok) {
                 int num_write_blocks;
@@ -296,15 +288,7 @@ static int calculate_rsum(struct rcksum_state *const z, unsigned char *data, int
          * it's not in the buffer. We will drop out of the loop and
          * return. */
     } else {
-        /* If we are moving forward just 1 block, we already have the
-         * following block rsum. If we are skipping both, then
-         * recalculate both */
-        if (z->seq_matches > 1 && blocks_matched == 1)
-            z->r[0] = z->r[1];
-        else
-            z->r[0] = rcksum_calc_rsum_block(data + x, z->blocksize);
-        if (z->seq_matches > 1)
-            z->r[1] = rcksum_calc_rsum_block(data + x + z->blocksize, z->blocksize);
+        z->r = rcksum_calc_rsum_block(data + x, z->blocksize);
     }
 
     return x;
@@ -327,7 +311,6 @@ static int calculate_rsum(struct rcksum_state *const z, unsigned char *data, int
  *        e.g. because we've just matched a block and the forward jump takes 
  *        us past the end of the buffer
  * r[0] - rolling checksum of the first blocksize bytes of the buffer
- * r[1] - rolling checksum of the next blocksize bytes of the buffer (if seq_matches > 1)
  */
 int rcksum_submit_source_data(struct rcksum_state *const z, unsigned char *data,
                               size_t len, off_t offset, bool remote) {
@@ -347,9 +330,7 @@ int rcksum_submit_source_data(struct rcksum_state *const z, unsigned char *data,
     }
 
     if (x || !offset) {
-        z->r[0] = rcksum_calc_rsum_block(data + x, z->blocksize);
-        if (z->seq_matches > 1)
-            z->r[1] = rcksum_calc_rsum_block(data + x + z->blocksize, z->blocksize);
+        z->r = rcksum_calc_rsum_block(data + x, z->blocksize);
     }
     z->skip = 0;
 
@@ -369,27 +350,7 @@ int rcksum_submit_source_data(struct rcksum_state *const z, unsigned char *data,
 
         /* Pull some invariants into locals, because the compiler doesn't
          * know they are invariants. */
-        register const int seq_matches = z->seq_matches;
         register const size_t bs = z->blocksize;
-
-        /* If the previous block was a match, but we're looking for
-         * sequential matches, then test this block against the block in
-         * the target immediately after our previous hit. */
-        if (z->next_match && z->seq_matches > 1) {
-            int thismatch;
-            const struct hash_entry *e = z->next_match;
-            if (0 != (thismatch = check_checksums_on_hash_chain(z, z->next_match, data + x, 1, !remote))) {
-#ifdef DEBUG
-                fprintf(stderr, "[lid:%08lu] [rid:%08lu] len:%lu offset:%08x x:%08x [M:%d] [F]\n", get_L_blockid(z, offset, x), get_HE_blockid(z,e), len, offset, x, thismatch);
-#endif
-                if (remote) {
-                    add_to_ranges(z, get_L_blockid(z, offset, x) );
-                    z->lid_offset++;
-                }
-                blocks_matched = 1;
-                got_blocks += thismatch;
-            }
-        }
 
         /* If we already matched this block, we don't look it up in the hash
          * table at all.
@@ -415,9 +376,7 @@ int rcksum_submit_source_data(struct rcksum_state *const z, unsigned char *data,
 
                 /* Do a hash table lookup - first in the bithash (fast negative
                  * check) and then in the rsum hash */
-                unsigned hash = z->r[0].b;
-                hash ^= ((seq_matches > 1) ? z->r[1].b
-                        : z->r[0].a & z->rsum_a_mask) << z->hash_func_shift;
+                uint64_t hash = calc_rhash(z, &z->r);
 
                 if ((z->bithash[(hash & z->bithashmask) >> 3] & (1 << (hash & 7))) != 0
                     && (e = z->rsum_hash[hash & z->hashmask]) != NULL) {
@@ -430,16 +389,16 @@ int rcksum_submit_source_data(struct rcksum_state *const z, unsigned char *data,
 #endif
                         if (remote) {
                             int i, id = get_HE_blockid(z,e);
-                            for (i = id; i < id + seq_matches; i++) {
+                            for (i = id; i < id + 1; i++) {
                                 remove_block_from_hash(z, i);
                             }
                             if (get_L_blockid(z, offset, x) == id ||
                                 get_L_blockid(z, offset, x) == id + z->lid_offset) {
-                                for (i = 0; i < seq_matches; i++)
+                                for (i = 0; i < 1; i++)
                                     add_to_ranges(z, get_L_blockid(z, offset, x + z->blocksize * i));
                             }
                         }
-                        blocks_matched = seq_matches;
+                        blocks_matched = 1;
                     }
                 }
             }
@@ -457,12 +416,9 @@ int rcksum_submit_source_data(struct rcksum_state *const z, unsigned char *data,
                     continue;
                 }
 
-                unsigned char Nc = data[x + bs * 2];
                 unsigned char nc = data[x + bs];
                 unsigned char oc = data[x];
-                UPDATE_RSUM(z->r[0].a, z->r[0].b, oc, nc, z->blockshift);
-                if (seq_matches > 1)
-                    UPDATE_RSUM(z->r[1].a, z->r[1].b, nc, Nc, z->blockshift);
+                UPDATE_RSUM(z->r.a, z->r.b, oc, nc, z->blockshift);
                 x++;
             }
         }

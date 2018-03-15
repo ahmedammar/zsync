@@ -66,8 +66,8 @@ static int write_block_sums(unsigned char *buf, size_t got, FILE * f, zsyncfile_
     /* Do rsum and checksum, and convert to network endian */
     r = rcksum_calc_rsum_block(buf, state->blocksize);
     rcksum_calc_checksum(&checksum[0], buf, state->blocksize);
-    r.a = htons(r.a);
-    r.b = htons(r.b);
+    r.a = htonl(r.a);
+    r.b = htonl(r.b);
 
     /* Write them raw to the stream */
     if (fwrite(&r, sizeof r, 1, f) != 1)
@@ -373,19 +373,12 @@ int zsyncfile_read_stream_write_blocksums(
 
 /* Decide how long a rsum hash and checksum hash per block we need for this file */
 void zsyncfile_compute_hash_lengths(
-        off_t len, size_t blocksize, int *rsum_len, int *checksum_len, int *seq_matches) {
-    *seq_matches = 1;
+        off_t len, size_t blocksize, int *rsum_len, int *checksum_len) {
     *rsum_len = ceil(((log(len) + log(blocksize)) / log(2) - 8.6) / 8);
     /* For large files, the optimum weak checksum size can be more than
-     * what we have available. Switch to seq_matches for this case. */
-    if (*rsum_len > 4) {
-        /* seq_matches > 1 in theory would reduce the amount of rsum_len
-         * needed, since we get effectively rsum_len*seq_matches required
-         * to match before a strong checksum is calculated. In practice,
-         * consecutive blocks in the file can be highly correlated, so we
-         * want to keep the maximum available rsum_len as well. */
-        *seq_matches = 2;
-        *rsum_len = 4;
+     * what we have available, tough luck */
+    if (*rsum_len > 8) {
+        *rsum_len = 8;
     }
 
     /* min lengths of rsums to store */
@@ -393,8 +386,7 @@ void zsyncfile_compute_hash_lengths(
 
     /* Now the checksum length; min of two calculations */
     *checksum_len = max(ceil(
-            (20 + (log(len) + log(1 + len / blocksize)) / log(2))
-            / *seq_matches / 8),
+            (20 + (log(len) + log(1 + len / blocksize)) / log(2)) / 8),
             ceil((20 + log(1 + len / blocksize) / log(2)) / 8));
 
     /* Keep checksum_len within 4-16 bytes */
@@ -428,15 +420,15 @@ static int fcopy(FILE * fin, FILE * fout, zsyncfile_state *state) {
  * parameters.
  */
 static int fcopy_hashes(FILE * fin, FILE * fout, size_t rsum_bytes, size_t hash_bytes, zsyncfile_state *state) {
-    unsigned char buf[20];
+    unsigned char buf[CHECKSUM_SIZE + sizeof(struct rsum)];
     size_t len;
     int result = 0;
 
     while ((len = fread(buf, 1, sizeof(buf), fin)) > 0) {
         /* write trailing rsum_bytes of the rsum (trailing because the second part of the rsum is more useful in practice for hashing), and leading checksum_bytes of the checksum */
-        if (fwrite(buf + 4 - rsum_bytes, 1, rsum_bytes, fout) < rsum_bytes)
+        if (fwrite(buf + sizeof(struct rsum) - rsum_bytes, 1, rsum_bytes, fout) < rsum_bytes)
             break;
-        if (fwrite(buf + 4, 1, hash_bytes, fout) < hash_bytes)
+        if (fwrite(buf + sizeof(struct rsum), 1, hash_bytes, fout) < hash_bytes)
             break;
     }
     if (ferror(fin)) {
@@ -450,7 +442,7 @@ static int fcopy_hashes(FILE * fin, FILE * fout, size_t rsum_bytes, size_t hash_
 
 int zsyncfile_write(
         FILE *fout, FILE *tf,
-        int rsum_len, int checksum_len, int seq_matches,
+        int rsum_len, int checksum_len,
         int do_recompress, const char *zfname, char *gzopts,
         const char *fname, time_t mtime,
         char **url, int nurls,
@@ -488,8 +480,7 @@ int zsyncfile_write(
     }
     fprintf(fout, "Blocksize: " SIZE_T_PF "\n", state->blocksize);
     fprintf(fout, "Length: " OFF_T_PF "\n", state->len);
-    fprintf(fout, "Hash-Lengths: %d,%d,%d\n", seq_matches, rsum_len,
-            checksum_len);
+    fprintf(fout, "Hash-Lengths: 1,%d,%d\n", rsum_len, checksum_len);
     {                           /* Write URLs */
         int i;
         for (i = 0; i < nurls; i++)

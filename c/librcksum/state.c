@@ -37,8 +37,7 @@
  * Creates and returns an rcksum_state with the given properties
  */
 struct rcksum_state *rcksum_init(zs_blockid nblocks, size_t blocksize,
-                                 int rsum_bytes, unsigned int checksum_bytes,
-                                 int require_consecutive_matches) {
+                                 int rsum_bytes, unsigned int checksum_bytes) {
     /* Allocate memory for the object */
     struct rcksum_state *z = malloc(sizeof(struct rcksum_state));
     if (z == NULL) return NULL;
@@ -46,15 +45,19 @@ struct rcksum_state *rcksum_init(zs_blockid nblocks, size_t blocksize,
     /* Enter supplied properties. */
     z->blocksize = blocksize;
     z->blocks = nblocks;
-    z->rsum_a_mask = rsum_bytes < 3 ? 0 : rsum_bytes == 3 ? 0xff : 0xffff;
+
+    // For every byte above the 4th, we get a bit of 'a'
+    // see fcopy_hashes()
+    z->rsum_a_mask = 0;
+    for (int i = 4; i < rsum_bytes; ++i) {
+        z->rsum_a_mask <<= 8;
+        z->rsum_a_mask |= 0xFF;
+    }
     z->rsum_bits = rsum_bytes * 8;
     z->checksum_bytes = checksum_bytes;
-    z->seq_matches = require_consecutive_matches;
     z->lid_offset = 0;
 
-    /* require_consecutive_matches is 1 if true; and if true we need 1 block of
-     * context to do block matching */
-    z->context = blocksize * require_consecutive_matches;
+    z->context = blocksize;
 
     /* Temporary file to hold the target file as we get blocks for it */
     z->filename = strdup("rcksum-XXXXXX");
@@ -89,8 +92,7 @@ struct rcksum_state *rcksum_init(zs_blockid nblocks, size_t blocksize,
             }
 
             z->blockhashes =
-                malloc(sizeof(z->blockhashes[0]) *
-                        (z->blocks + z->seq_matches));
+                malloc(sizeof(z->blockhashes[0]) * (z->blocks + 1));
             if (z->blockhashes != NULL)
                 return z;
 

@@ -15,6 +15,8 @@
  *   COPYING file for details.
  */
 
+#include <stdint.h>
+
 /* Internal data structures to the library. Not to be included by code outside librcksum. */
 
 /* Two types of checksum -
@@ -28,6 +30,8 @@ struct hash_entry {
     unsigned char checksum[CHECKSUM_SIZE];
 };
 
+typedef uint32_t rsum_component_type;
+
 /* An rcksum_state contains the set of checksums of the blocks of a target
  * file, and is used to apply the rsync algorithm to detect data in common with
  * a local file. It essentially contains as rsum and a checksum per block of
@@ -35,17 +39,16 @@ struct hash_entry {
  * over data looking for matching blocks. */
 
 struct rcksum_state {
-    struct rsum r[2];           /* Current rsums */
+    struct rsum r;              /* Current rsum */
 
     zs_blockid blocks;          /* Number of blocks in the target file */
     size_t blocksize;           /* And how many bytes per block */
     int blockshift;             /* log2(blocksize) */
-    unsigned short rsum_a_mask; /* The mask to apply to rsum values before looking up */
+    rsum_component_type rsum_a_mask; /* The mask to apply to rsum values before looking up */
     unsigned short rsum_bits;   /* # of bits of rsum data in the .zsync for each block */
     unsigned short hash_func_shift; /* Config for the hash function */
     unsigned int checksum_bytes; /* How many bytes of the MD4 checksum are available */
-    int seq_matches;
-    unsigned int context;       /* precalculated blocksize * seq_matches */
+    unsigned int context;       /* precalculated blocksize */
 
     /* These are used by the library. Note, not thread safe. */
     int skip;                   /* skip forward on next submit_source_data */
@@ -59,14 +62,14 @@ struct rcksum_state {
     zs_blockid next_known;
 
     /* Hash table for rsync algorithm */
-    unsigned int hashmask;
+    uint64_t hashmask;
     struct hash_entry *blockhashes;
     struct hash_entry **rsum_hash;
 
     /* And a 1-bit per rsum value table to allow fast negative lookups for hash
      * values that don't occur in the target file. */
     unsigned char *bithash;
-    unsigned int bithashmask;
+    uint64_t bithashmask;
 
     /* Current state and stats for data collected by algorithm */
     int numranges;
@@ -108,13 +111,10 @@ zs_blockid next_known_block(struct rcksum_state *rs, zs_blockid x);
 struct hash_entry *calc_hash_entry(void *data, size_t len);
 
 /* Hash the checksum values for the given hash entry and return the hash value */
-static inline unsigned calc_rhash(const struct rcksum_state *const z,
-                                  const struct hash_entry *const e) {
-    unsigned h = e[0].r.b;
-
-    h ^= ((z->seq_matches > 1) ? e[1].r.b
-        : e[0].r.a & z->rsum_a_mask) << z->hash_func_shift;
-
+static inline uint64_t calc_rhash(const struct rcksum_state *const z,
+                                  const struct rsum *const r) {
+    uint64_t h = r->b;
+    h ^= (r->a & z->rsum_a_mask) << z->hash_func_shift;
     return h;
 }
 
