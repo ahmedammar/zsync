@@ -24,6 +24,8 @@
 
 #if defined(Q_OS_UNIX)
 # include <arpa/inet.h>
+#elif defined(Q_OS_WIN)
+# include <winsock2.h>
 #endif
 
 #if defined(__GNUC__) && defined (__OpenBSD__)

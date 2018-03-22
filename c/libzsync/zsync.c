@@ -41,7 +41,6 @@
 #include <string.h>
 #include <ctype.h>
 #include <time.h>
-#include <arpa/inet.h>
 
 #ifdef WITH_DMALLOC
 # include <dmalloc.h>
@@ -55,10 +54,6 @@
 #include "librcksum/rcksum.h"
 #include "zsync.h"
 #include "sha1.h"
-
-#if defined(Q_OS_WIN)
-# include <winsock2.h>
-#endif
 
 /* Probably we really want a table of compression methods here. But I've only
  * implemented SHA1 so this is it for now. */

@@ -14,13 +14,13 @@
  */
 
 #include "zsyncfile.h"
+#include "zsglobal.h"
 
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
-#include <arpa/inet.h>
 
 #include "librcksum/rcksum.h"
 #include "zlib/zlib.h"
