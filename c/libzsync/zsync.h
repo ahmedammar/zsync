@@ -12,7 +12,10 @@
  *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *   COPYING file for details.
  */
+
 #include <stdbool.h>
+#include <stdio.h>
+#include <time.h>
 
 struct zsync_state;
 

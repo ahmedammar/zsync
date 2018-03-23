@@ -32,6 +32,10 @@
 #include "rcksum.h"
 #include "internal.h"
 
+static inline int min_int(int a, int b) {
+    return a > b ? b : a;
+}
+
 /* rcksum_add_target_block(self, blockid, rsum, checksum)
  * Sets the stored hash values for the given blockid to the given values.
  */
@@ -152,7 +156,7 @@ int build_hash(struct rcksum_state *z) {
     /* Allocate bit-table based on rsum. Aim is for 1/(1<<BITHASHBITS) load
      * factor, so hash_vits shouls be hash_bits + BITHASHBITS if we have that
      * many bits available. */
-    hash_bits = min(hash_bits + BITHASHBITS, avail_bits);
+    hash_bits = min_int(hash_bits + BITHASHBITS, avail_bits);
     z->bithashmask = (1U << hash_bits) - 1;
     z->bithash = calloc(z->bithashmask + 1, 1);
     if (!z->bithash) {

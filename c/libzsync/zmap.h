@@ -15,6 +15,8 @@
 
 #include "zsglobal.h"
 
+#include <string.h>
+
 struct gzblock {
   uint16_t inbitoffset;
   uint16_t outbyteoffset;

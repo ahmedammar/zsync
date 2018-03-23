@@ -13,8 +13,6 @@
  *   COPYING file for details.
  */
 
-#include "zsglobal.h"
-
 #include <stdio.h>
 #include <time.h>
 #include "sha1.h"

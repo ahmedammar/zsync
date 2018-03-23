@@ -28,6 +28,14 @@
 #include "sha1.h"
 #include "../format_string.h"
 
+static inline int min_int(int a, int b) {
+    return a > b ? b : a;
+}
+
+static inline int max_int(int a, int b) {
+    return a > b ? a : b;
+}
+
 zsyncfile_state *zsyncfile_init(size_t blocksize)
 {
     zsyncfile_state *state = malloc(sizeof(zsyncfile_state));
@@ -382,15 +390,15 @@ void zsyncfile_compute_hash_lengths(
     }
 
     /* min lengths of rsums to store */
-    *rsum_len = max(2, *rsum_len);
+    *rsum_len = max_int(2, *rsum_len);
 
     /* Now the checksum length; min of two calculations */
-    *checksum_len = max(ceil(
+    *checksum_len = max_int(ceil(
             (20 + (log(len) + log(1 + len / blocksize)) / log(2)) / 8),
             ceil((20 + log(1 + len / blocksize) / log(2)) / 8));
 
     /* Keep checksum_len within 4-16 bytes */
-    *checksum_len = min(16, max(4, *checksum_len));
+    *checksum_len = min_int(16, max_int(4, *checksum_len));
 }
 
 /* fcopy(instream, outstream)
@@ -469,7 +477,11 @@ int zsyncfile_write(
             char buf[32];
             struct tm mtime_tm;
 
+#ifdef _WIN32
+            if (gmtime_s(&mtime_tm, &mtime) == 0) {
+#else
             if (gmtime_r(&mtime, &mtime_tm) != NULL) {
+#endif
                 if (strftime(buf, sizeof buf, "%a, %d %b %Y %H:%M:%S %z", &mtime_tm) > 0)
                     fprintf(fout, "MTime: %s\n", buf);
             }
