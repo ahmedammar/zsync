@@ -45,7 +45,10 @@
 
 /* rcksum_calc_rsum_block(data, data_len)
  * Calculate the rsum for a single block of data. */
-struct rsum __attribute__((pure))
+struct rsum
+#ifdef __GNUC_
+    __attribute__((pure))
+#endif
 rcksum_calc_rsum_block(const unsigned char *data, size_t len) {
     register rsum_component_type a = 0;
     register rsum_component_type b = 0;

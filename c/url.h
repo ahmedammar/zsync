@@ -22,6 +22,14 @@ extern const char http_scheme[];
  */
 char* get_http_host_port(const char* url, char* hostn, int hnlen, char** port);
 
-char* __attribute__((pure)) make_url_absolute(const char* base, const char* url);
+char*
+#ifdef __GNUC__
+    __attribute__((pure))
+#endif
+make_url_absolute(const char* base, const char* url);
 
-int __attribute__((pure)) is_url_absolute(const char* url);
+int
+#ifdef __GNUC__
+    __attribute__((pure))
+#endif
+is_url_absolute(const char* url);

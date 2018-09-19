@@ -20,7 +20,11 @@ extern int no_progress;
  * Returns a progress structure. Caller is responsible for calling
  * end_progress() on it later (which will free the memory that it uses).
  */
-struct progress* start_progress(void) __attribute__((malloc));
+struct progress* start_progress(void)
+#ifdef __GNUC__
+    __attribute__((malloc))
+#endif
+    ;
 
 void do_progress(struct progress* p, float pcnt, long long newdl);
 

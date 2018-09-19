@@ -21,7 +21,11 @@
 struct gzblock {
   uint16_t inbitoffset;
   uint16_t outbyteoffset;
-} __attribute__((packed));
+}
+#ifdef __GNUC__
+    __attribute__((packed))
+#endif
+;
 
 #define GZB_NOTBLOCKSTART 0x8000
 

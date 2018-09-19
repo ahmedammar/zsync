@@ -51,7 +51,11 @@
 int verbose = 0;
 
 /* stream_error(function, stream) - Exit with IO-related error message */
-void __attribute__ ((noreturn)) stream_error(const char *func, FILE * stream, void *error_context) {
+void
+#ifdef __GNUC__
+    __attribute__ ((noreturn))
+#endif
+stream_error(const char *func, FILE * stream, void *error_context) {
     (void)error_context;
     fprintf(stderr, "%s: %s\n", func, strerror(ferror(stream)));
     exit(2);
