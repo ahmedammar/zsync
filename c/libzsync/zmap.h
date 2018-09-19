@@ -16,6 +16,7 @@
 #include "zsglobal.h"
 
 #include <string.h>
+#include <sys/types.h>
 
 struct gzblock {
   uint16_t inbitoffset;

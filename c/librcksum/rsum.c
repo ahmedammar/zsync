@@ -24,7 +24,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#ifdef Q_OS_UNIX
 #include <unistd.h>
+#endif
 #include <sys/types.h>
 #include <sys/stat.h>
 

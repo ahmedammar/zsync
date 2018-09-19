@@ -16,6 +16,7 @@
  */
 
 #include <stdint.h>
+#include <sys/types.h>
 
 /* Internal data structures to the library. Not to be included by code outside librcksum. */
 

@@ -16,6 +16,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <time.h>
+#include <sys/types.h>
 
 struct zsync_state;
 

@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <sys/types.h>
 
 struct rcksum_state;
 
