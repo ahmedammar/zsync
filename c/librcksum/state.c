@@ -23,8 +23,19 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <fcntl.h>
+
+#if !defined(_MSC_VER)
+#include <unistd.h>
+#else
+int mkstemp(char *template)
+{
+    char *t = mktemp(template);
+    int fd = open(t, O_RDWR | O_CREAT | O_EXCL);
+    return fd;
+}
+#endif
+
 
 #ifdef WITH_DMALLOC
 # include <dmalloc.h>

@@ -24,7 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#ifdef Q_OS_UNIX
+#if !defined(_MSC_VER)
 #include <unistd.h>
 #endif
 #include <sys/types.h>

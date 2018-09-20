@@ -37,10 +37,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
-#include <unistd.h>
 #include <string.h>
 #include <ctype.h>
 #include <time.h>
+
+#if !defined(_MSC_VER)
+#include <unistd.h>
+#else
+int ftruncate(int fd, off_t length)
+{
+    return chsize(fd, length);
+}
+#endif
 
 #ifdef WITH_DMALLOC
 # include <dmalloc.h>
