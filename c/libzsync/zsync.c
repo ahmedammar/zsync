@@ -345,7 +345,7 @@ struct zsync_state *zsync_begin(FILE * f) {
  * of the in-progress target. And it populates the per-block checksums from the
  * given file handle, which must be reading from the .zsync at the start of the
  * checksums. 
- * rsum_bytes, checksum_bytes, seq_matches are settings for the checksums,
+ * rsum_bytes, checksum_bytes are settings for the checksums,
  * passed through to the rcksum_state. */
 static int zsync_read_blocksums(struct zsync_state *zs, FILE * f,
                                 int rsum_bytes, unsigned int checksum_bytes) {
