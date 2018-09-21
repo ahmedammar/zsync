@@ -125,9 +125,6 @@ struct zsync_state {
 #endif
 
     time_t mtime;               /* MTime: from the .zsync, or -1 */
-
-    int rsum_bytes;
-    unsigned int checksum_bytes;
 };
 
 static int zsync_read_blocksums(struct zsync_state *zs, FILE * f,
@@ -153,7 +150,11 @@ static char **append_ptrlist(int *n, char **p, char *a) {
 }
 
 /* Constructor */
-struct zsync_state *zsync_parse(FILE * f) {
+struct zsync_state *zsync_begin(FILE * f) {
+    /* Defaults for the checksum bytes and sequential matches properties of the
+     * rcksum_state. These are the defaults from versions of zsync before these
+     * were variable. */
+    int checksum_bytes = 16, rsum_bytes = 4;
 
     /* Field names that we can ignore if present and not
      * understood. This allows new headers to be added without breaking
@@ -166,12 +167,6 @@ struct zsync_state *zsync_parse(FILE * f) {
 
     if (!zs)
         return NULL;
-
-    /* Defaults for the checksum bytes and sequential matches properties of the
-     * rcksum_state. These are the defaults from versions of zsync before these
-     * were variable. */
-    zs->checksum_bytes = 16;
-    zs->rsum_bytes = 4;
 
     /* Any non-zero defaults here. */
     zs->mtime = -1;
@@ -241,9 +236,9 @@ struct zsync_state *zsync_parse(FILE * f) {
             else if (!strcmp(buf, "Hash-Lengths")) {
                 int seq_matches = 0;
                 if (sscanf
-                    (p, "%d,%d,%d", &seq_matches, &zs->rsum_bytes,
-                     &zs->checksum_bytes) != 3 || zs->rsum_bytes < 1 || zs->rsum_bytes > 8
-                    || zs->checksum_bytes < 3 || zs->checksum_bytes > 16
+                    (p, "%d,%d,%d", &seq_matches, &rsum_bytes,
+                     &checksum_bytes) != 3 || rsum_bytes < 1 || rsum_bytes > 8
+                    || checksum_bytes < 3 || checksum_bytes > 16
                     || seq_matches != 1) {
                     fprintf(stderr, "nonsensical hash lengths line %s\n", p);
                     free(zs);
@@ -337,25 +332,11 @@ struct zsync_state *zsync_parse(FILE * f) {
         free(zs);
         return NULL;
     }
-
-    /* Make the rcksum_state first */
-    if (!(zs->rs = rcksum_init(zs->blocks, zs->blocksize, zs->rsum_bytes,
-                               zs->checksum_bytes))) {
-        fprintf(stderr, "Failed to initialize rcksum\n");
+    if (zsync_read_blocksums(zs, f, rsum_bytes, checksum_bytes) != 0) {
         free(zs);
         return NULL;
     }
-
     return zs;
-}
-
-/* Actuall begin parsing input */
-int zsync_begin(struct zsync_state *zs, FILE * f) {
-    if (zsync_read_blocksums(zs, f, zs->rsum_bytes, zs->checksum_bytes) != 0) {
-        free(zs);
-        return -1;
-    }
-    return 0;
 }
 
 /* zsync_read_blocksums(self, FILE*, rsum_bytes, checksum_bytes)
@@ -368,6 +349,12 @@ int zsync_begin(struct zsync_state *zs, FILE * f) {
  * passed through to the rcksum_state. */
 static int zsync_read_blocksums(struct zsync_state *zs, FILE * f,
                                 int rsum_bytes, unsigned int checksum_bytes) {
+    /* Make the rcksum_state first */
+    if (!(zs->rs = rcksum_init(zs->blocks, zs->blocksize, rsum_bytes,
+                               checksum_bytes))) {
+        return -1;
+    }
+
     /* Now read in and store the checksums */
     zs_blockid id = 0;
     for (; id < zs->blocks; id++) {
@@ -564,9 +551,9 @@ int zsync_submit_source_file(struct zsync_state *zs, FILE * f, int progress, boo
     return rcksum_submit_source_file(zs->rs, f, progress, remote);
 }
 
-static char *zsync_cur_filename(struct zsync_state *zs, char *f) {
-    if (f)
-        zs->cur_filename = rcksum_filename(zs->rs, f);
+static char *zsync_cur_filename(struct zsync_state *zs) {
+    if (!zs->cur_filename)
+        zs->cur_filename = rcksum_filename(zs->rs);
 
     return zs->cur_filename;
 }
@@ -579,24 +566,18 @@ off_t zsync_file_length(struct zsync_state *zs) {
  * Tell libzsync to move the local copy of the target (or under construction
  * target) to the given filename. */
 int zsync_rename_file(struct zsync_state *zs, const char *f) {
-    char *rf = zsync_cur_filename(zs, f);
+    char *rf = zsync_cur_filename(zs);
 
-    if (strcmp(zs->cur_filename, f)) {
-        close(rcksum_filehandle(zs->rs));
-        int x = unlink(rf);
-        if (!x) {
-            free(rf);
-            zs->cur_filename = strdup(f);
-            rcksum_fileopen(zs->rs);
-        }
-        else
-            perror("unlink");
+    int x = rename(rf, f);
 
-        return x;
+    if (!x) {
+        free(rf);
+        zs->cur_filename = strdup(f);
     }
+    else
+        perror("rename");
 
-    if (rf) free(rf);
-    return 0;
+    return x;
 }
 
 /* int hexdigit(char)
@@ -622,7 +603,7 @@ int zsync_complete(struct zsync_state *zs) {
     /* We've finished with the rsync algorithm. Take over the local copy from
      * librcksum and free our rcksum state. */
     int fh = rcksum_filehandle(zs->rs);
-    zsync_cur_filename(zs, NULL);
+    zsync_cur_filename(zs);
     rcksum_end(zs->rs);
     zs->rs = NULL;
 
@@ -800,7 +781,7 @@ static int zsync_recompress(struct zsync_state *zs) {
 /* Destructor */
 char *zsync_end(struct zsync_state *zs) {
     int i;
-    char *f = zsync_cur_filename(zs, NULL);
+    char *f = zsync_cur_filename(zs);
 
     /* Free rcksum object and zmap */
     if (zs->rs)

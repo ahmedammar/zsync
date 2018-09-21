@@ -23,7 +23,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <fcntl.h>
 
 #if !defined(_MSC_VER)
 #include <unistd.h>
@@ -119,9 +118,9 @@ struct rcksum_state *rcksum_init(zs_blockid nblocks, size_t blocksize,
  * Returns temporary filename to caller as malloced string.
  * Ownership of the file passes to the caller - the function returns NULL if
  * called again, and it is up to the caller to deal with the file. */
-char *rcksum_filename(struct rcksum_state *rs, char* next) {
+char *rcksum_filename(struct rcksum_state *rs) {
     char *p = rs->filename;
-    rs->filename = strdup(next);
+    rs->filename = NULL;
     return p;
 }
 
@@ -135,21 +134,14 @@ int rcksum_filehandle(struct rcksum_state *rs) {
     return h;
 }
 
-int rcksum_fileopen(struct rcksum_state *rs) {
-    rs->fd = open(rs->filename, O_RDWR | O_CREAT, 0666);
-    return 0;
-}
-
 /* rcksum_end - destructor */
 void rcksum_end(struct rcksum_state *z) {
     /* Free temporary file resources */
     if (z->fd != -1)
         close(z->fd);
     if (z->filename) {
-        if (strncmp(z->filename, "rcksum-", 7) == 0)
-            unlink(z->filename);
+        unlink(z->filename);
         free(z->filename);
-        z->filename = NULL;
     }
 
     /* Free other allocated memory */

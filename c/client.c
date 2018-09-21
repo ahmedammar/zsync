@@ -82,7 +82,6 @@ FILE* open_zcat_pipe(const char* fname)
  * source files which are believed to have data in common with the target.
  */
 void read_seed_file(struct zsync_state *z, const char *fname) {
-#ifdef WITH_ZLIB
     /* If we should decompress this file */
     if (zsync_hint_decompress(z) && strlen(fname) > 3
         && !strcmp(fname + strlen(fname) - 3, ".gz")) {
@@ -104,9 +103,7 @@ void read_seed_file(struct zsync_state *z, const char *fname) {
             }
         }
     }
-    else
-#endif
-    {
+    else {
         /* Simple uncompressed file - open it */
         FILE *f = fopen(fname, "r");
         if (!f) {
@@ -194,10 +191,7 @@ struct zsync_state *read_zsync_control_file(const char *p, const char *fn) {
     }
 
     /* Read the .zsync */
-    if ((zs = zsync_parse(f)) == NULL) {
-	exit(1);
-    }
-    if (zsync_begin(zs, f) != 0) {
+    if ((zs = zsync_begin(f)) == NULL) {
         exit(1);
     }
 

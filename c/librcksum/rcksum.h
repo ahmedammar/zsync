@@ -51,9 +51,8 @@ void rcksum_end(struct rcksum_state* z);
  * Once you have transferred out the file handle, you can no longer read and write data through librcksum - it has handed it over to you, and can use it no more itself.
  * If you transfer out the filename, you are responsible for renaming it to something useful. If you don't transfer out the filename, librcksum will unlink it at rcksum_end.
  */
-char* rcksum_filename(struct rcksum_state* z, char* next);
+char* rcksum_filename(struct rcksum_state* z);
 int rcksum_filehandle(struct rcksum_state* z);
-int rcksum_fileopen(struct rcksum_state * z);
 
 void rcksum_add_target_block(struct rcksum_state* z, zs_blockid b, struct rsum r, void* checksum);
 
