@@ -128,6 +128,7 @@ struct zsync_state {
 };
 
 static int zsync_read_blocksums(struct zsync_state *zs, FILE * f,
+                                const char *dst_file,
                                 int rsum_bytes, unsigned int checksum_bytes);
 static int zsync_sha1(struct zsync_state *zs, int fh);
 static int zsync_recompress(struct zsync_state *zs);
@@ -150,7 +151,7 @@ static char **append_ptrlist(int *n, char **p, char *a) {
 }
 
 /* Constructor */
-struct zsync_state *zsync_begin(FILE * f) {
+struct zsync_state *zsync_begin(FILE * f, const char *dst_file) {
     /* Defaults for the checksum bytes and sequential matches properties of the
      * rcksum_state. These are the defaults from versions of zsync before these
      * were variable. */
@@ -332,7 +333,7 @@ struct zsync_state *zsync_begin(FILE * f) {
         free(zs);
         return NULL;
     }
-    if (zsync_read_blocksums(zs, f, rsum_bytes, checksum_bytes) != 0) {
+    if (zsync_read_blocksums(zs, f, dst_file, rsum_bytes, checksum_bytes) != 0) {
         free(zs);
         return NULL;
     }
@@ -347,11 +348,11 @@ struct zsync_state *zsync_begin(FILE * f) {
  * checksums. 
  * rsum_bytes, checksum_bytes are settings for the checksums,
  * passed through to the rcksum_state. */
-static int zsync_read_blocksums(struct zsync_state *zs, FILE * f,
+static int zsync_read_blocksums(struct zsync_state *zs, FILE * f, const char *dst_file,
                                 int rsum_bytes, unsigned int checksum_bytes) {
     /* Make the rcksum_state first */
     if (!(zs->rs = rcksum_init(zs->blocks, zs->blocksize, rsum_bytes,
-                               checksum_bytes))) {
+                               checksum_bytes, dst_file))) {
         return -1;
     }
 
@@ -552,7 +553,7 @@ int zsync_submit_source_file(struct zsync_state *zs, FILE * f, int progress, boo
 }
 
 static char *zsync_cur_filename(struct zsync_state *zs) {
-    if (!zs->cur_filename)
+    if (!zs->cur_filename && zs->rs)
         zs->cur_filename = rcksum_filename(zs->rs);
 
     return zs->cur_filename;

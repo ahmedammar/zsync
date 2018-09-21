@@ -23,6 +23,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <fcntl.h>
 
 #if !defined(_MSC_VER)
 #include <unistd.h>
@@ -47,7 +48,7 @@ int mkstemp(char *template)
  * Creates and returns an rcksum_state with the given properties
  */
 struct rcksum_state *rcksum_init(zs_blockid nblocks, size_t blocksize,
-                                 int rsum_bytes, unsigned int checksum_bytes) {
+                                 int rsum_bytes, unsigned int checksum_bytes, const char *dst_file) {
     /* Allocate memory for the object */
     struct rcksum_state *z = malloc(sizeof(struct rcksum_state));
     if (z == NULL) return NULL;
@@ -70,7 +71,7 @@ struct rcksum_state *rcksum_init(zs_blockid nblocks, size_t blocksize,
     z->context = blocksize;
 
     /* Temporary file to hold the target file as we get blocks for it */
-    z->filename = strdup("rcksum-XXXXXX");
+    z->filename = NULL;
 
     /* Initialise to 0 various state & stats */
     z->gotblocks = 0;
@@ -84,10 +85,14 @@ struct rcksum_state *rcksum_init(zs_blockid nblocks, size_t blocksize,
     z->rsum_hash = NULL;
     z->bithash = NULL;
 
-    if (!(z->blocksize & (z->blocksize - 1)) && z->filename != NULL
-            && z->blocks) {
+    if (!(z->blocksize & (z->blocksize - 1)) && z->blocks) {
         /* Create temporary file */
-        z->fd = mkstemp(z->filename);
+        if (dst_file) {
+            z->fd = open(dst_file, O_RDWR | O_CREAT);
+        } else {
+            z->filename = strdup("rcksum-XXXXXX");
+            z->fd = mkstemp(z->filename);
+        }
         if (z->fd == -1) {
             perror("open");
         }

@@ -191,7 +191,7 @@ struct zsync_state *read_zsync_control_file(const char *p, const char *fn) {
     }
 
     /* Read the .zsync */
-    if ((zs = zsync_begin(f)) == NULL) {
+    if ((zs = zsync_begin(f, NULL)) == NULL) {
         exit(1);
     }
 

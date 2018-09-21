@@ -21,8 +21,11 @@
 struct zsync_state;
 
 /* zsync_begin - load a zsync file and return data structure to use for the rest of the process.
+ * if dst_file is not NULL, it will be the name at which we save the result, otherwise a temporary
+ * file will be created. The dst_file is not automatically removed by zsync. But if a temporary
+ * file is crated, it is removed unless zsync_rename_file is called.
  */
-struct zsync_state* zsync_begin(FILE* cf);
+struct zsync_state* zsync_begin(FILE* cf, const char *dst_file);
 
 /* zsync_hint_decompress - if it returns non-zero, this suggests that 
  *  compressed seed files should be decompressed */

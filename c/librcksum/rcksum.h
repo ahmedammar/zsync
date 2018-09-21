@@ -44,7 +44,7 @@ struct rsum {
 #define CHECKSUM_SIZE 16
 
 struct rcksum_state *rcksum_init(zs_blockid nblocks, size_t blocksize,
-                                 int rsum_butes, unsigned int checksum_bytes);
+                                 int rsum_butes, unsigned int checksum_bytes, const char* dst_file);
 void rcksum_end(struct rcksum_state* z);
 
 /* These transfer out the filename and handle of the file backing the data retrieved.
